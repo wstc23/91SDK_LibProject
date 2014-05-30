@@ -1,16 +1,18 @@
 package com.android.splus.sdk._91;
-
-
-
-
+import com.android.splus.sdk.apiinterface.APIConstants;
+import com.android.splus.sdk.apiinterface.DateUtil;
 import com.android.splus.sdk.apiinterface.IPayManager;
 import com.android.splus.sdk.apiinterface.InitBean;
 import com.android.splus.sdk.apiinterface.InitBean.InitBeanSuccess;
 import com.android.splus.sdk.apiinterface.InitCallBack;
 import com.android.splus.sdk.apiinterface.LoginCallBack;
+import com.android.splus.sdk.apiinterface.LoginParser;
 import com.android.splus.sdk.apiinterface.LogoutCallBack;
+import com.android.splus.sdk.apiinterface.MD5Util;
+import com.android.splus.sdk.apiinterface.NetHttpUtil;
 import com.android.splus.sdk.apiinterface.NetHttpUtil.DataCallback;
 import com.android.splus.sdk.apiinterface.RechargeCallBack;
+import com.android.splus.sdk.apiinterface.RequestModel;
 import com.android.splus.sdk.apiinterface.UserAccount;
 import com.nd.commplatform.NdCommplatform;
 import com.nd.commplatform.NdErrorCode;
@@ -28,14 +30,21 @@ import org.json.JSONObject;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityManager.RunningAppProcessInfo;
+import android.app.AlertDialog;
+import android.app.ProgressDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.res.Configuration;
+import android.text.InputFilter;
+import android.text.InputType;
+import android.text.TextUtils;
+import android.util.Log;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
-import java.util.UUID;
 
 public class _91 implements IPayManager {
     private static final String TAG = "_91";
@@ -53,7 +62,7 @@ public class _91 implements IPayManager {
 
     private InitCallBack mInitCallBack;
 
-    private Activity mActivity;
+    private Activity mActivity=null;
 
     private LoginCallBack mLoginCallBack;
 
@@ -64,13 +73,21 @@ public class _91 implements IPayManager {
 
     private int mUid = 0;
 
-    private String mPassport = "";
+    private String mPassport;
 
-    private String mSessionid = "";
+    private String mSessionid;
 
     private NdToolBar mToolBar;
 
     private boolean mAppForeground = true;
+
+    private int mServerId;
+    private float mMoney ;
+    private String mPayway="91" ;
+
+    private ProgressDialog mProgressDialog;
+
+
 
     /**
      * @Title: _91
@@ -150,10 +167,10 @@ public class _91 implements IPayManager {
                     mInitCallBack.initSuccess("初始化成功", null);
                     break;
                 case OnInitCompleteListener.FLAG_FORCE_CLOSE:
-                    mInitCallBack.initFaile("取消登录");
+                    mInitCallBack.initFaile("取消初始化");
                     break;
                 default:
-                    mInitCallBack.initFaile("取消登录");
+                    mInitCallBack.initFaile("取消初始化");
                     // 如果还有别的Activity或资源要关闭的在这里处理
                     break;
             }
@@ -165,6 +182,7 @@ public class _91 implements IPayManager {
     public void login(Activity activity, LoginCallBack loginCallBack) {
         this.mActivity = activity;
         this.mLoginCallBack = loginCallBack;
+        showProgressDialog(activity);
         NdCommplatform.getInstance().ndLogin(activity, mNdMiscCallbackListener);
     }
 
@@ -178,25 +196,38 @@ public class _91 implements IPayManager {
                 tip = "账号登录成功";
                 NdCommplatform nc = com.nd.commplatform.NdCommplatform.getInstance();
                 HashMap<String, Object> params = new HashMap<String, Object>();
-                params.put("SessionId", nc.getSessionId());
-                params.put("Uin", nc.getLoginUin());
-                params.put("Token", nc.getToken().toString());
-                params.put("NickName", nc.getLoginNickName());
-                // TODO 后台生产相对应的账号
-                // NetHttpUtil.getDataFromServerPOST(mActivity,new
-                // RequestModel(APIConstants.TS_VERIFY, params, new
-                // LoginParser()),mLoginDataCallBack);
-                mLoginCallBack.loginSuccess(null);
+                Integer gameid = mInitBean.getGameid();
+                String partner = mInitBean.getPartner();
+                String referer = mInitBean.getReferer();
+                long unixTime = DateUtil.getUnixTime();
+                String deviceno=mInitBean.getDeviceNo();
+                String signStr =deviceno+gameid+partner+referer+unixTime+mInitBean.getAppKey();
+                String sign=MD5Util.getMd5toLowerCase(signStr);
+
+                params.put("deviceno", deviceno);
+                params.put("gameid", gameid);
+                params.put("partner",partner);
+                params.put("referer", referer);
+                params.put("time", unixTime);
+                params.put("sign", sign);
+                params.put("partner_sessionid", nc.getSessionId());
+                params.put("partner_uid", nc.getLoginUin());
+                params.put("partner_token", nc.getToken().toString().trim());
+                params.put("partner_nickname", nc.getLoginNickName());
+                params.put("partner_appid", mAppId);
+                String hashMapTOgetParams = NetHttpUtil.hashMapTOgetParams(params, APIConstants.LOGIN_URL);
+                System.out.println(hashMapTOgetParams);
+                NetHttpUtil.getDataFromServerPOST(mActivity,new RequestModel(APIConstants.LOGIN_URL, params, new LoginParser()),mLoginDataCallBack);
 
             } else if (code == NdErrorCode.ND_COM_PLATFORM_ERROR_CANCEL) {
                 tip = "取消账号登录";
                 mLoginCallBack.backKey("取消登录");
-
             } else {
-                mLoginCallBack.loginFaile("登录失败，错误代码：" + code);
-                tip = "登录失败，错误代码：" + code;
+                Log.e(TAG, "登录失败，错误代码：" + code);
+                mLoginCallBack.loginFaile("登录失败");
+                tip = "登录失败";
             }
-            Toast.makeText(mActivity, tip, Toast.LENGTH_SHORT).show();
+            Log.d(TAG, tip);
         }
     };
 
@@ -204,7 +235,8 @@ public class _91 implements IPayManager {
 
         @Override
         public void callbackSuccess(JSONObject paramObject) {
-
+            closeProgressDialog();
+            Log.d(TAG, "mLoginDataCallBack---------"+paramObject.toString());
             try {
                 if (paramObject != null && paramObject.optInt("code") == 1) {
                     JSONObject data = paramObject.optJSONObject("data");
@@ -215,26 +247,24 @@ public class _91 implements IPayManager {
 
                         @Override
                         public Integer getUserUid() {
-
                             return mUid;
 
                         }
 
                         @Override
                         public String getUserName() {
-
                             return mPassport;
 
                         }
 
                         @Override
                         public String getSession() {
-
                             return mSessionid;
 
                         }
                     };
                     mLoginCallBack.loginSuccess(mUserModel);
+
                 } else {
                     mLoginCallBack.loginFaile(paramObject.optString("msg"));
                 }
@@ -245,6 +275,7 @@ public class _91 implements IPayManager {
 
         @Override
         public void callbackError(String error) {
+            closeProgressDialog();
             mLoginCallBack.loginFaile(error);
         }
 
@@ -256,26 +287,102 @@ public class _91 implements IPayManager {
     }
 
     @Override
-    public void rechargeByQuota(Activity activity, Integer serverId, String serverName, Integer roleId, String roleName, String outOrderid, String pext, Float money, RechargeCallBack rechargeCallBack) {
+    public void rechargeByQuota(Activity activity, final Integer serverId, final String serverName, final Integer roleId, final String roleName, final String outOrderid, final String pext, Float money, RechargeCallBack rechargeCallBack) {
         this.mActivity = activity;
         this.mRechargeCallBack = rechargeCallBack;
-
+        this.mServerId=serverId;
+        this.mMoney=money;
         if (NdCommplatform.getInstance().isLogined()) {
             // 已经是登录状态
             Toast.makeText(mActivity, "已经是登录状态", Toast.LENGTH_SHORT).show();
-        } else {
+            if (mMoney == 0) {
+                final EditText editText = new EditText(activity);
+                InputFilter[] filters = { new InputFilter.LengthFilter(6) };
+                editText.setFilters( filters );
+                editText.setInputType( InputType.TYPE_CLASS_NUMBER );
+                new AlertDialog.Builder(activity).setTitle("请输入金额")
+                .setIcon(android.R.drawable.ic_dialog_info)
+                .setView(editText)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("确定", new android.content.DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if(TextUtils.isEmpty(editText.getText().toString())||editText.getText().toString().startsWith("0")){
+                            Toast.makeText(mActivity, "请输入金额", Toast.LENGTH_SHORT).show();
+                            return;
+                        }else{
+                            mMoney=Float.parseFloat(editText.getText().toString());
+                            HashMap<String, Object> params = new HashMap<String, Object>();
+                            Integer gameid = mInitBean.getGameid();
+                            String partner = mInitBean.getPartner();
+                            String referer = mInitBean.getReferer();
+                            long unixTime = DateUtil.getUnixTime();
+                            String deviceno=mInitBean.getDeviceNo();
+                            String signStr =gameid+serverName+deviceno+referer+partner+mUid+mMoney+mPayway+unixTime+mInitBean.getAppKey();
+                            String sign=MD5Util.getMd5toLowerCase(signStr);
+
+                            params.put("deviceno", deviceno);
+                            params.put("gameid", gameid);
+                            params.put("partner",partner);
+                            params.put("referer", referer);
+                            params.put("time", unixTime);
+                            params.put("sign", sign);
+                            params.put("uid",mUid);
+                            params.put("passport",mPassport);
+                            params.put("serverId",serverId);
+                            params.put("serverName",serverName);
+                            params.put("roleId",roleId);
+                            params.put("roleName",roleName);
+                            params.put("money",mMoney);
+                            params.put("pext",pext);
+                            params.put("money",mMoney);
+                            params.put("payway",mPayway);
+                            params.put("outOrderid",outOrderid);
+                            String hashMapTOgetParams = NetHttpUtil.hashMapTOgetParams(params, APIConstants.PAY_URL);
+                            System.out.println(hashMapTOgetParams);
+                            NetHttpUtil.getDataFromServerPOST(mActivity, new RequestModel(APIConstants.PAY_URL, params,new LoginParser()),mRechargeDataCallBack);
+
+                        }
+                    }
+
+                }).show();
+
+            }else{
+                HashMap<String, Object> params = new HashMap<String, Object>();
+                Integer gameid = mInitBean.getGameid();
+                String partner = mInitBean.getPartner();
+                String referer = mInitBean.getReferer();
+                long unixTime = DateUtil.getUnixTime();
+                String deviceno=mInitBean.getDeviceNo();
+                String signStr =gameid+serverName+deviceno+referer+partner+mUid+mMoney+mPayway+unixTime+mInitBean.getAppKey();
+                String sign=MD5Util.getMd5toLowerCase(signStr);
+
+                params.put("deviceno", deviceno);
+                params.put("gameid", gameid);
+                params.put("partner",partner);
+                params.put("referer", referer);
+                params.put("time", unixTime);
+                params.put("sign", sign);
+                params.put("uid",mUid);
+                params.put("passport",mPassport);
+                params.put("serverId",serverId);
+                params.put("serverName",serverName);
+                params.put("roleId",roleId);
+                params.put("roleName",roleName);
+                params.put("money",mMoney);
+                params.put("pext",pext);
+                params.put("money",money);
+                params.put("payway",mPayway);
+                params.put("outOrderid",outOrderid);
+                String hashMapTOgetParams = NetHttpUtil.hashMapTOgetParams(params, APIConstants.PAY_URL);
+                System.out.println(hashMapTOgetParams);
+                NetHttpUtil.getDataFromServerPOST(activity, new RequestModel(APIConstants.PAY_URL, params,new LoginParser()),mRechargeDataCallBack);
+
+            }
+        }else {
             // 未登录状态
             Toast.makeText(mActivity, "未登录状态,请重新登录游戏", Toast.LENGTH_SHORT).show();
         }
-        String cooOrderSerial = UUID.randomUUID().toString();
-        int needPayCoins = 50;
-        int ndUniPayForCoin = NdCommplatform.getInstance().ndUniPayForCoin(cooOrderSerial, needPayCoins, outOrderid, activity);
-
-        // HashMap<String, Object> params = new HashMap<String, Object>();
-
-        // NetHttpUtil.getDataFromServerPOST(activity, new
-        // RequestModel(APIConstants.TS_PAY, params,new LoginParser()),
-        // mRechargeDataCallBack);
 
     }
 
@@ -283,21 +390,19 @@ public class _91 implements IPayManager {
 
         @Override
         public void callbackSuccess(JSONObject paramObject) {
-
+            Log.d(TAG, "mRechargeDataCallBack---------"+paramObject.toString());
             try {
-                if (paramObject != null && paramObject.optInt("code") == 1) {
-                    String data = paramObject.optString("data");
-                    PayRechargeBean rechargeBean = new PayRechargeBean(data);
+                if (paramObject != null && (paramObject.optInt("code") == 1||paramObject.optInt("code") == 24)) {
+                    JSONObject data = paramObject.optJSONObject("data");
+                    String orderid=data.optString("orderid");
                     NdBuyInfo buyInfo = new NdBuyInfo(); //
-                    buyInfo.setSerial(rechargeBean.getOrderid());
-                    buyInfo.setProductId(rechargeBean.getProductId());// 商品ID，厂商也可以使用固定商品ID
-                                                                      // 例如“1”
-                    buyInfo.setProductName(rechargeBean.getProductName());// 产品名称
-                    buyInfo.setProductPrice(rechargeBean.getProductPrice());// 产品现价
-                                                                            // (不能小于0.01个91豆)
-                    buyInfo.setProductOrginalPrice(rechargeBean.getProductOrginalPrice());// 产品原价，同上面的价格
-                    buyInfo.setCount(rechargeBean.getCount());// 购买数量(商品数量最大10000，最新1)
-                    buyInfo.setProductName(rechargeBean.getProductDescription());// 服务器分区，不超过20个字符，只允许英文或数字
+                    buyInfo.setSerial(orderid);
+                    buyInfo.setProductId( mInitBean.getPartner());// 商品ID，厂商也可以使用固定商品ID 例如“1”
+                    buyInfo.setProductName("游戏道具");// 产品名称
+                    buyInfo.setProductPrice(mMoney);// 产品现价(不能小于0.01个91豆)
+                    buyInfo.setProductOrginalPrice(mMoney);// 产品原价，同上面的价格
+                    buyInfo.setCount(1);// 购买数量(商品数量最大10000，最小是1)
+                    buyInfo.setPayDescription(String.valueOf(mServerId));// 服务器分区，不超过20个字符，只允许英文或数字
 
                     int aError = NdCommplatform.getInstance().ndUniPayAsyn(buyInfo, mActivity, new NdMiscCallbackListener.OnPayProcessListener() {
                         @Override
@@ -403,10 +508,18 @@ public class _91 implements IPayManager {
         } else if (align != 0 && position == 0.5f) {
             place = NdToolBarPlace.NdToolBarRightMid;
         } else if (align != 0 && position > 0.5f) {
-            place = NdToolBarPlace.NdToolBarTopRight;
+            place = NdToolBarPlace.NdToolBarBottomRight;
         }
-        mToolBar = NdToolBar.create(activity, place);
-        mToolBar.show();
+        try {
+            if(mToolBar==null){
+                mToolBar = NdToolBar.create(activity, place);
+            }
+            mToolBar.show();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+
     }
 
     @Override
@@ -461,10 +574,48 @@ public class _91 implements IPayManager {
 
     @Override
     public void onDestroy(Activity activity) {
-        if (mToolBar != null) {
-            mToolBar.recycle();
-            mToolBar = null;
-        }
+        //        try {
+        //            if (ndToolBar != null) {
+        //                ndToolBar.recycle();
+        //                ndToolBar = null;
+        //            }
+        //
+        //        } catch (Exception e) {
+        //            e.printStackTrace();
+        //        }
     }
 
+    /**
+     * @return void 返回类型
+     * @Title: showProgressDialog(设置进度条)
+     * @author xiaoming.yuan
+     * @data 2013-7-12 下午10:09:36
+     */
+    protected void showProgressDialog(Activity activity) {
+        if ((! activity.isFinishing()) && this.mProgressDialog == null) {
+            this.mProgressDialog = new ProgressDialog(activity);// 实例化
+        }
+        // 设置ProgressDialog 的进度条style
+        this.mProgressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);// 设置进度条风格，风格为圆形，旋转的
+        this.mProgressDialog.setTitle("登陆");
+        this.mProgressDialog.setMessage("加载中...");// 设置ProgressDialog 提示信息
+        // 设置ProgressDialog 的进度条是否不明确
+        this.mProgressDialog.setIndeterminate(false);
+        // 设置ProgressDialog 的进度条是否不明确
+        this.mProgressDialog.setCancelable(false);
+        this.mProgressDialog.setCanceledOnTouchOutside(false);
+        this.mProgressDialog.show();
+
+    }
+
+    /**
+     * @return void 返回类型
+     * @Title: closeProgressDialog(关闭进度条)
+     * @author xiaoming.yuan
+     * @data 2013-7-12 下午10:09:30
+     */
+    protected void closeProgressDialog() {
+        if (this.mProgressDialog != null && this.mProgressDialog.isShowing())
+            this.mProgressDialog.dismiss();
+    }
 }
