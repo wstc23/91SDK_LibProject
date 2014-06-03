@@ -77,7 +77,7 @@ public class _91 implements IPayManager {
 
     private String mSessionid;
 
-    private NdToolBar mToolBar;
+    private NdToolBar mToolBar=null;
 
     private boolean mAppForeground = true;
 
@@ -182,7 +182,6 @@ public class _91 implements IPayManager {
     public void login(Activity activity, LoginCallBack loginCallBack) {
         this.mActivity = activity;
         this.mLoginCallBack = loginCallBack;
-        showProgressDialog(activity);
         NdCommplatform.getInstance().ndLogin(activity, mNdMiscCallbackListener);
     }
 
@@ -217,6 +216,8 @@ public class _91 implements IPayManager {
                 params.put("partner_appid", mAppId);
                 String hashMapTOgetParams = NetHttpUtil.hashMapTOgetParams(params, APIConstants.LOGIN_URL);
                 System.out.println(hashMapTOgetParams);
+
+                showProgressDialog(mActivity);
                 NetHttpUtil.getDataFromServerPOST(mActivity,new RequestModel(APIConstants.LOGIN_URL, params, new LoginParser()),mLoginDataCallBack);
 
             } else if (code == NdErrorCode.ND_COM_PLATFORM_ERROR_CANCEL) {
@@ -294,7 +295,6 @@ public class _91 implements IPayManager {
         this.mMoney=money;
         if (NdCommplatform.getInstance().isLogined()) {
             // 已经是登录状态
-            Toast.makeText(mActivity, "已经是登录状态", Toast.LENGTH_SHORT).show();
             if (mMoney == 0) {
                 final EditText editText = new EditText(activity);
                 InputFilter[] filters = { new InputFilter.LengthFilter(6) };
@@ -409,48 +409,51 @@ public class _91 implements IPayManager {
                         public void finishPayProcess(int code) {
                             switch (code) {
                                 case NdErrorCode.ND_COM_PLATFORM_SUCCESS:
-                                    Toast.makeText(mActivity, "购买成功", Toast.LENGTH_SHORT).show();
+                                    Log.d(TAG, "购买成功");
                                     mRechargeCallBack.rechargeSuccess(mUserModel);
                                     break;
                                 case NdErrorCode.ND_COM_PLATFORM_ERROR_PAY_FAILURE:
-                                    Toast.makeText(mActivity, "购买失败", Toast.LENGTH_SHORT).show();
+                                    Log.d(TAG, "购买失败");
                                     mRechargeCallBack.rechargeFaile("购买失败");
                                     break;
                                 case NdErrorCode.ND_COM_PLATFORM_ERROR_PAY_CANCEL:
-                                    Toast.makeText(mActivity, "取消购买", Toast.LENGTH_SHORT).show();
+                                    Log.d(TAG, "取消购买");
                                     mRechargeCallBack.rechargeFaile("取消购买");
                                     break;
                                 case NdErrorCode.ND_COM_PLATFORM_ERROR_PAY_ASYN_SMS_SENT:
-                                    Toast.makeText(mActivity, "订单已提交，充值短信已发送", Toast.LENGTH_SHORT).show();
+                                    Log.d(TAG, "订单已提交，充值短信已发送");
                                     mRechargeCallBack.rechargeFaile("订单已提交，充值短信已发送");
                                     break;
                                 case NdErrorCode.ND_COM_PLATFORM_ERROR_PAY_REQUEST_SUBMITTED:
-                                    Toast.makeText(mActivity, "订单已提交", Toast.LENGTH_SHORT).show();
+                                    Log.d(TAG, "订单已提交");
                                     mRechargeCallBack.rechargeFaile("订单已提交");
                                     break;
                                 default:
-                                    Toast.makeText(mActivity, "购买失败", Toast.LENGTH_SHORT).show();
+                                    Log.d(TAG, "您输入参数有错，无法提交购买请求");
                                     mRechargeCallBack.rechargeFaile("您输入参数有错，无法提交购买请求");
                                     break;
                             }
                         }
                     });
                     if (aError != 0) {
-                        Toast.makeText(mActivity, "您输入参数有错，无法提交购买请求", Toast.LENGTH_SHORT).show();
+                        Log.d(TAG, "您输入参数有错，无法提交购买请求");
                         mRechargeCallBack.rechargeFaile("您输入参数有错，无法提交购买请求");
                     }
 
                 } else {
+                    Log.d(TAG, paramObject.optString("msg"));
                     mRechargeCallBack.rechargeFaile(paramObject.optString("msg"));
                 }
 
             } catch (Exception e) {
+                Log.d(TAG, e.getLocalizedMessage());
                 mRechargeCallBack.rechargeFaile(e.getLocalizedMessage());
             }
         }
 
         @Override
         public void callbackError(String error) {
+            Log.d(TAG, error);
             mRechargeCallBack.rechargeFaile(error);
 
         }
@@ -496,27 +499,28 @@ public class _91 implements IPayManager {
 
     @Override
     public void creatFloatButton(Activity activity, boolean showlasttime, int align, float position) {
-        int place = 1;
-        if (align == 0 && position < 0.5f) {
-            place = NdToolBarPlace.NdToolBarTopLeft;
-        } else if (align == 0 && position == 0.5f) {
-            place = NdToolBarPlace.NdToolBarLeftMid;
-        } else if (align == 0 && position > 0.5f) {
-            place = NdToolBarPlace.NdToolBarBottomLeft;
-        } else if (align != 0 && position < 0.5f) {
-            place = NdToolBarPlace.NdToolBarTopRight;
-        } else if (align != 0 && position == 0.5f) {
-            place = NdToolBarPlace.NdToolBarRightMid;
-        } else if (align != 0 && position > 0.5f) {
-            place = NdToolBarPlace.NdToolBarBottomRight;
-        }
         try {
             if(mToolBar==null){
+                int place = 1;
+                if (align == 0 && position < 0.5f) {
+                    place = NdToolBarPlace.NdToolBarTopLeft;
+                } else if (align == 0 && position == 0.5f) {
+                    place = NdToolBarPlace.NdToolBarLeftMid;
+                } else if (align == 0 && position > 0.5f) {
+                    place = NdToolBarPlace.NdToolBarBottomLeft;
+                } else if (align != 0 && position < 0.5f) {
+                    place = NdToolBarPlace.NdToolBarTopRight;
+                } else if (align != 0 && position == 0.5f) {
+                    place = NdToolBarPlace.NdToolBarRightMid;
+                } else if (align != 0 && position > 0.5f) {
+                    place = NdToolBarPlace.NdToolBarBottomRight;
+                }
                 mToolBar = NdToolBar.create(activity, place);
             }
             mToolBar.show();
         } catch (Exception e) {
             e.printStackTrace();
+            return;
         }
 
 
@@ -575,9 +579,9 @@ public class _91 implements IPayManager {
     @Override
     public void onDestroy(Activity activity) {
         //        try {
-        //            if (ndToolBar != null) {
-        //                ndToolBar.recycle();
-        //                ndToolBar = null;
+        //            if (mToolBar != null) {
+        //                mToolBar.recycle();
+        //                mToolBar = null;
         //            }
         //
         //        } catch (Exception e) {
@@ -592,20 +596,24 @@ public class _91 implements IPayManager {
      * @data 2013-7-12 下午10:09:36
      */
     protected void showProgressDialog(Activity activity) {
-        if ((! activity.isFinishing()) && this.mProgressDialog == null) {
-            this.mProgressDialog = new ProgressDialog(activity);// 实例化
-        }
-        // 设置ProgressDialog 的进度条style
-        this.mProgressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);// 设置进度条风格，风格为圆形，旋转的
-        this.mProgressDialog.setTitle("登陆");
-        this.mProgressDialog.setMessage("加载中...");// 设置ProgressDialog 提示信息
-        // 设置ProgressDialog 的进度条是否不明确
-        this.mProgressDialog.setIndeterminate(false);
-        // 设置ProgressDialog 的进度条是否不明确
-        this.mProgressDialog.setCancelable(false);
-        this.mProgressDialog.setCanceledOnTouchOutside(false);
-        this.mProgressDialog.show();
+        if (! activity.isFinishing()) {
+            try {
+                this.mProgressDialog = new ProgressDialog(activity);// 实例化
+                // 设置ProgressDialog 的进度条style
+                this.mProgressDialog.setProgressStyle(ProgressDialog.STYLE_SPINNER);// 设置进度条风格，风格为圆形，旋转的
+                this.mProgressDialog.setTitle("登陆");
+                this.mProgressDialog.setMessage("加载中...");// 设置ProgressDialog 提示信息
+                // 设置ProgressDialog 的进度条是否不明确
+                this.mProgressDialog.setIndeterminate(false);
+                // 设置ProgressDialog 的进度条是否不明确
+                this.mProgressDialog.setCancelable(false);
+                this.mProgressDialog.setCanceledOnTouchOutside(false);
+                this.mProgressDialog.show();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
+        }
     }
 
     /**
