@@ -213,6 +213,7 @@ public class _91 implements IPayManager {
                 params.put("partner_uid", nc.getLoginUin());
                 params.put("partner_token", nc.getToken().toString().trim());
                 params.put("partner_nickname", nc.getLoginNickName());
+                params.put("partner_username", "");
                 params.put("partner_appid", mAppId);
                 String hashMapTOgetParams = NetHttpUtil.hashMapTOgetParams(params, APIConstants.LOGIN_URL);
                 System.out.println(hashMapTOgetParams);
