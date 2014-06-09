@@ -71,7 +71,7 @@ public class _91 implements IPayManager {
     // 下面参数仅在测试时用
     private UserAccount mUserModel;
 
-    private int mUid = 0;
+    private int mUid;
 
     private String mPassport;
 
