@@ -334,7 +334,6 @@ public class _91 implements IPayManager {
                             params.put("serverName",serverName);
                             params.put("roleId",roleId);
                             params.put("roleName",roleName);
-                            params.put("money",mMoney);
                             params.put("pext",pext);
                             params.put("money",mMoney);
                             params.put("payway",mPayway);
@@ -372,7 +371,6 @@ public class _91 implements IPayManager {
                 params.put("roleName",roleName);
                 params.put("money",mMoney);
                 params.put("pext",pext);
-                params.put("money",money);
                 params.put("payway",mPayway);
                 params.put("outOrderid",outOrderid);
                 String hashMapTOgetParams = NetHttpUtil.hashMapTOgetParams(params, APIConstants.PAY_URL);
